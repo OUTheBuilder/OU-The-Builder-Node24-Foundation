@@ -1,46 +1,32 @@
-name: Build
+- name: Extract project archive
+  shell: bash
+  run: |
+    set -euo pipefail
 
-on:
-  push:
-  pull_request:
+    test -f OU-The-Builder-node24-foundation.zip || {
+      echo "::error::OU-The-Builder-node24-foundation.zip was not found"
+      exit 1
+    }
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+    unzip -q OU-The-Builder-node24-foundation.zip -d extracted
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    PROJECT_DIR="$(
+      find extracted -type f -name package.json -print0 |
+        while IFS= read -r -d '' package_json; do
+          candidate="$(dirname "$package_json")"
 
-      # Add the step that downloads or creates this archive before extraction.
-      - name: Extract project archive
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          test -f OU-The-Builder-node24-foundation.zip || {
-            echo "::error::OU-The-Builder-node24-foundation.zip was not found"
-            exit 1
-          }
-
-          unzip -q OU-The-Builder-node24-foundation.zip -d extracted
-
-          PROJECT_DIR="$(
-            find extracted -type f -name package-lock.json -print0 |
-              while IFS= read -r -d '' lockfile; do
-                candidate="$(dirname "$lockfile")"
-                if [ -f "$candidate/gradlew" ]; then
-                  printf '%s\n' "$candidate"
-                  break
-                fi
-              done
-          )"
-
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "::error::No directory contains both package-lock.json and gradlew"
-            find extracted -maxdepth 6 -print
-            exit 1
+          if [ -f "$candidate/package-lock.json" ]; then
+            printf '%s\n' "$candidate"
+            break
           fi
+        done
+    )"
 
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Using project directory: $PROJECT_DIR"
+    if [ -z "$PROJECT_DIR" ]; then
+      echo "::error::No directory contains both package.json and package-lock.json"
+      find extracted -maxdepth 6 -print
+      exit 1
+    fi
+
+    echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+    echo "Using project directory: $PROJECT_DIR"
