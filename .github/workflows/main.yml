@@ -14,12 +14,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Extract project archive
+        shell: bash
+        run: |
+          set -e
+          unzip -q OU-The-Builder-node24-foundation.zip -d .
+          PROJECT_DIR=$(find . -type f \( -name package-lock.json -o -name gradlew \) | head -n 1 | xargs -r dirname)
+          if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/package-lock.json" ] || [ ! -f "$PROJECT_DIR/gradlew" ]; then
+            echo "Android project archive did not contain a valid package-lock.json and gradlew."
+            find . -maxdepth 4 -print
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
       - name: Set up Node.js 24
         uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: OU_The_Builder_Foundation/package-lock.json
+          cache-dependency-path: ${{ env.PROJECT_DIR }}/package-lock.json
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -36,21 +49,21 @@ jobs:
           yes | sdkmanager --licenses || true
 
       - name: Install Node dependencies
-        working-directory: OU_The_Builder_Foundation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npm ci
 
       - name: Make Gradle executable
-        working-directory: OU_The_Builder_Foundation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: chmod +x gradlew
 
       - name: Show Gradle version
-        working-directory: OU_The_Builder_Foundation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: ./gradlew --version
 
       - name: Clean Android project
-        working-directory: OU_The_Builder_Foundation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: ./gradlew clean
 
       - name: Build debug APK
-        working-directory: OU_The_Builder_Foundation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: ./gradlew assembleDebug
