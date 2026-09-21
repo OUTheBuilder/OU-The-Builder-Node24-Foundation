@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ./OU_The_Builder_Foundation/package-lock.json
+          cache-dependency-path: OU_The_Builder_Foundation/package-lock.json
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
