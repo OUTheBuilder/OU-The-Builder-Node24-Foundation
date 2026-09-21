@@ -1,29 +1,63 @@
-- name: Extract project archive
-  shell: bash
-  run: |
-    set -euo pipefail
+name: Build
 
-    test -f OU-The-Builder-node24-foundation.zip || {
-      echo "::error::OU-The-Builder-node24-foundation.zip was not found"
-      exit 1
-    }
+on:
+  push:
+  pull_request:
 
-    unzip -q OU-The-Builder-node24-foundation.zip -d extracted
+jobs:
+  build:
+    runs-on: ubuntu-24.04
 
-    PROJECT_DIR="$(
-      find extracted -type f -name package.json -print0 |
-        while IFS= read -r -d '' pkg; do
-          candidate="$(dirname "$pkg")"
-          printf '%s\n' "$candidate"
-          break
-        done
-    )"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
-    if [ -z "$PROJECT_DIR" ]; then
-      echo "::error::No directory contains package.json"
-      find extracted -maxdepth 6 -print
-      exit 1
-    fi
+      - name: Extract project archive
+        shell: bash
+        run: |
+          set -euo pipefail
 
-    echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-    echo "Using project directory: $PROJECT_DIR"
+          archive="OU-The-Builder-node24-foundation.zip"
+
+          if [ ! -f "$archive" ]; then
+            echo "::error::$archive was not found"
+            exit 1
+          fi
+
+          rm -rf extracted
+          mkdir -p extracted
+          unzip -q "$archive" -d extracted
+
+          project_dir="$(
+            find extracted -type f -name package.json -print0 |
+              while IFS= read -r -d '' package_json; do
+                dirname "$package_json"
+                break
+              done
+          )"
+
+          if [ -z "$project_dir" ]; then
+            echo "::error::No package.json found in the archive"
+            find extracted -maxdepth 6 -print
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$project_dir" >> "$GITHUB_ENV"
+          echo "Using project directory: $project_dir"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm install
+
+      - name: Build
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm run build --if-present
+
+      - name: Test
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm test --if-present
